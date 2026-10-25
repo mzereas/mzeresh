@@ -1,0 +1,29 @@
+name: Emergency Restore JSON
+
+on:
+  workflow_dispatch:
+
+jobs:
+  restore_file:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore from Memory
+        run: |
+          if [ -f backup_memory.json ]; then
+            cp backup_memory.json ashtemobile94.json
+            git config --global user.name "GitHub Action"
+            git config --global user.email "action@github.com"
+            git add ashtemobile94.json
+            git commit -m "Emergency Restore: Recovered all apps from backup!"
+            git push
+            echo "سەرکەوتوو بوو! هەموو یارییەکان گەڕانەوە."
+          else
+            echo "کێشە هەیە: فایلی بیرگە نەدۆزرایەوە!"
+            exit 1
+          fi
