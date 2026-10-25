@@ -1,0 +1,135 @@
+name: Admin Panel - Batch Adder (4 Apps)
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_type:
+        description: 'ئایا ئەمە یارییە یان بەرنامە؟ (games یان apps)'
+        required: true
+        type: choice
+        options:
+          - games
+          - apps
+      inject_dylib:
+        description: 'ئایا AlertAshte.dylib بخرێتە ناو یارییەکان؟'
+        required: true
+        type: choice
+        options:
+          - 'Yes'
+          - 'No'
+      release_tag:
+        description: 'بۆ کام ریلیز بنێردرێت؟ (ئەگەر یەکێکیان پڕ بوو ئەوی دواتر هەڵبژێرە)'
+        required: true
+        type: choice
+        default: 'V1'
+        options:
+          - 'V1'
+          - 'V2'
+          - 'V3'
+          - 'V4'
+          - 'V5'
+      app1_name:
+        description: '١. لینکی پەڕەی یاری یەکەم'
+        required: false
+        type: string
+      app1_ipa:
+        description: '١. لینکی ڕاستەوخۆی IPA یەکەم'
+        required: false
+        type: string
+      app2_name:
+        description: '٢. لینکی پەڕەی یاری دووەم'
+        required: false
+        type: string
+      app2_ipa:
+        description: '٢. لینکی ڕاستەوخۆی IPA دووەم'
+        required: false
+        type: string
+      app3_name:
+        description: '٣. لینکی پەڕەی یاری سێیەم'
+        required: false
+        type: string
+      app3_ipa:
+        description: '٣. لینکی ڕاستەوخۆی IPA سێیەم'
+        required: false
+        type: string
+      app4_name:
+        description: '٤. لینکی پەڕەی یاری چوارەم'
+        required: false
+        type: string
+      app4_ipa:
+        description: '٤. لینکی ڕاستەوخۆی IPA چوارەم'
+        required: false
+        type: string
+
+jobs:
+  add_app:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lief
+
+      - name: Heavy Work (Download IPAs and Scrape)
+        env:
+          APP_TYPE: ${{ github.event.inputs.app_type }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          APP1_NAME: ${{ github.event.inputs.app1_name }}
+          APP1_IPA: ${{ github.event.inputs.app1_ipa }}
+          APP2_NAME: ${{ github.event.inputs.app2_name }}
+          APP2_IPA: ${{ github.event.inputs.app2_ipa }}
+          APP3_NAME: ${{ github.event.inputs.app3_name }}
+          APP3_IPA: ${{ github.event.inputs.app3_ipa }}
+          APP4_NAME: ${{ github.event.inputs.app4_name }}
+          APP4_IPA: ${{ github.event.inputs.app4_ipa }}
+        run: python admin_adder.py
+
+      - name: Inject Custom Library directly inside IPA files
+        if: ${{ github.event.inputs.inject_dylib == 'Yes' }}
+        run: python inject.py || true
+
+      - name: Upload IPAs to Release ${{ github.event.inputs.release_tag }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          files: ipas/*.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smart Queue (Safe JSON Update and Push)
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          
+          JSON_FILE=$(echo "YXNodGVtb2JpbGU5NC5qc29u" | base64 --decode)
+          
+          for i in {1..20}; do
+            echo "هەوڵی ژمارە $i: هێنانی تازەترین ڤێرژنی سۆرسەکە..."
+            git pull origin main --rebase --autostash
+            
+            echo "خستنە ناوەوەی یارییەکان بۆ ناو سۆرسەکە..."
+            python admin_adder.py update_json
+            
+            git add "$JSON_FILE" backup_memory.json img/ imgg/
+            git commit -m "Batch Added 4 Apps" || echo "No changes"
+            
+            if git push; then
+              echo "سەرکەوتوو بوو! یارییەکان خرانە ناو گیتهاپ."
+              break
+            else
+              echo "هێڵەکە قەرەباڵغە! ١٠ چرکە چاوەڕێ دەکەم."
+              git restore "$JSON_FILE" backup_memory.json || true
+              sleep 10
+            fi
+          done
