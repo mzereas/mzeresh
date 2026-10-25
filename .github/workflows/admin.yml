@@ -18,7 +18,7 @@ on:
           - 'Yes'
           - 'No'
       release_tag:
-        description: 'بۆ کام ریلیز بنێردرێت؟ (ئەگەر یەکێکیان پڕ بوو ئەوی دواتر هەڵبژێرە)'
+        description: 'ريلس'
         required: true
         type: choice
         default: 'V1'
